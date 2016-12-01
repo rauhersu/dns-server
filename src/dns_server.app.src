@@ -1,0 +1,10 @@
+%-*-Mode:erlang;coding:utf-8-*-
+
+{application, dns_server,
+ [{description, "A DNS server "},
+  {vsn, "0.1.0"},
+  {applications,
+   [kernel,
+    stdlib
+   ]}
+]}.
