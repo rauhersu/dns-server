@@ -63,7 +63,7 @@
         16#8180).
 -define(DNS_NUM_AUTH,                   % No authority 
         16#0000).
--define(DNS_NUM_ADD                     % No additional
+-define(DNS_NUM_ADD,                    % No additional
         16#0000).
 -define(DNS_ANSWER_TYPE,                % A (host address)
         16#0001).
