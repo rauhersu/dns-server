@@ -2,7 +2,7 @@
 
 {application, dns_server,
  [{description, "A DNS server "},
-  {vsn, "0.1.0"},
+  {vsn, "git"},
   {applications,
    [kernel,
     stdlib
