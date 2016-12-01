@@ -8,7 +8,7 @@
 -define(NULL_TERMINATION_LEN,
         ?BYTE).
 
-% DNS Query A Request
+% Request (DNS Query A)
 %
 -define(DNS_ID_LEN(),
         (2*?BYTE)).
@@ -35,10 +35,10 @@
          ?DNS_NUM_ANSWERS_LEN()+
          ?DNS_NUM_AUTH_LEN()+
          ?DNS_NUM_ADD_LEN())).
--define(DNS_QUESTION_ONE, % only one question is allowed
+-define(DNS_QUESTION_ONE,               %  only one question is allowed
         1).
 
-% DNS Query A Response
+% Response (DNS Query A)
 %
 -define(DNS_ANSWER_POINTER,
         16#C0).
@@ -57,21 +57,21 @@
 -define(DNS_ANSWER_ZERO,
         0).
 
-% hardcoded values for this exercise
+% Response hardcoded values 
 %
--define(DNS_FLAGS,
+-define(DNS_FLAGS,                      % qr rd ra
         16#8180).
--define(DNS_NUM_AUTH,
+-define(DNS_NUM_AUTH,                   % No authority 
         16#0000).
--define(DNS_NUM_ADD,
+-define(DNS_NUM_ADD                     % No additional
         16#0000).
--define(DNS_ANSWER_TYPE, % A (host address)
+-define(DNS_ANSWER_TYPE,                % A (host address)
         16#0001).
--define(DNS_ANSWER_CLASS, % IN
+-define(DNS_ANSWER_CLASS,               % IN
         16#0001).
--define(DNS_ANSWER_TTL, % 10 seconds
+-define(DNS_ANSWER_TTL,                 % 10 seconds
         16#0000000A).
--define(DNS_ANSWER_DATA_LENGTH, % % 4 bytes (IPv4 address)
+-define(DNS_ANSWER_DATA_LENGTH,         % 4 bytes (IPv4 address)
         16#0004).
 
 -include_lib("stdlib/include/qlc.hrl").
@@ -323,5 +323,3 @@ run(Port) ->
     dns_db_provision(Hosts_by_name),
 
     dns_server(Port,Hosts_by_name).
-
-
