@@ -1,7 +1,9 @@
 dns_server
 =====
 
-An OTP application
+An DNS server deployed as an OTP application, just for fun with Erlang :).
+
+In a WIP status ...
 
 Build
 -----
