@@ -1,10 +1,17 @@
 %-*-Mode:erlang;coding:utf-8-*-
 
 {application, dns_server,
- [{description, "A DNS server "},
+ [{description, "A DNS server"},
   {vsn, "git"},
+  {registered, []},
+  {mod, { dns_server_app, []}},
   {applications,
    [kernel,
     stdlib
-   ]}
+   ]},
+  {env,[]},
+  {modules, []},
+  {maintainers, []},
+  {licenses, []},
+  {links, []}
 ]}.
