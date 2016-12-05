@@ -4,7 +4,7 @@
  [{description, "A DNS server"},
   {vsn, "git"},
   {registered, []},
-  {mod, { dns_server_app, []}},
+  {mod, { dns_server_app, dns_db_server,[]}},
   {applications,
    [kernel,
     stdlib
