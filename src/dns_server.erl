@@ -1,12 +1,22 @@
 %-*-Mode:erlang;coding:utf-8-*-
 
 -module(dns_server).
--export([run/1]).
+-export([start/2,
+         start/1,
+         show_stat_response/0,
+         dns_db_is_schema_locked/0]).
 
 -define(BYTE,
         8).
+
 -define(NULL_TERMINATION_LEN,
         ?BYTE).
+
+-define(DNS_SERVER_NAME,
+        dns_server).
+
+-define(IS_TUPLE_OK(Tuple),
+        (ok == element(1,(Tuple)))).
 
 % Request (DNS Query A)
 %
@@ -59,40 +69,71 @@
 
 % Response hardcoded values 
 %
--define(DNS_FLAGS,                      % qr rd ra
+-define(DNS_FLAGS,                  % qr rd ra
         16#8180).
--define(DNS_NUM_AUTH,                   % No authority 
+-define(DNS_NUM_AUTH,               % No authority 
         16#0000).
--define(DNS_NUM_ADD,                    % No additional
+-define(DNS_NUM_ADD,                % No additional
         16#0000).
--define(DNS_ANSWER_TYPE,                % A (host address)
+-define(DNS_ANSWER_TYPE,            % A (host address)
         16#0001).
--define(DNS_ANSWER_CLASS,               % IN
+-define(DNS_ANSWER_CLASS,           % IN
         16#0001).
--define(DNS_ANSWER_TTL,                 % 10 seconds
+-define(DNS_ANSWER_TTL,             % 10 seconds
         16#0000000A).
--define(DNS_ANSWER_DATA_LENGTH,         % 4 bytes (IPv4 address)
+-define(DNS_ANSWER_DATA_LENGTH,     % 4 bytes (IPv4 address)
         16#0004).
 
 -include_lib("stdlib/include/qlc.hrl").
+
 -record(dns_queryA_response_TABLE, {hostname, responses}).
 
-dns_db_init() ->
-    mnesia:create_schema([node()]),
-    mnesia:start(),
-    mnesia:create_table(
-      dns_queryA_response_TABLE,
-      [{attributes, record_info(fields,
-                                dns_queryA_response_TABLE)}]),
-    mnesia:stop().
+-define(DNS_DB_TIMEOUT,
+        20000).
+
+% Hidden 'lock' file to hint the schema has already been created.
+% Created in the same dir as the code (MODULE trick).
+%
+-define(DNS_DB_SCHEMA_FILE_LOCK,
+        filename:join(filename:dirname(code:which(?MODULE)),
+                      ".Mnesia.schema.lock")).       
+
+dns_db_is_schema_locked() ->
+    case file:read_file_info(?DNS_DB_SCHEMA_FILE_LOCK,[read]) of
+        {ok,_IoDevice} -> true;
+        {_error,_IoDevice} -> false
+    end.
+
+dns_db_set_schema_locked(Force) ->
+    case dns_db_is_schema_locked() of
+        true -> 
+            (Force and (?IS_TUPLE_OK(file:open(?DNS_DB_SCHEMA_FILE_LOCK,read))));
+        false ->
+            (?IS_TUPLE_OK(file:open(?DNS_DB_SCHEMA_FILE_LOCK,write)))
+    end.
+
+dns_db_init() ->                                            
+    case dns_db_set_schema_locked(false) of
+        false ->
+            mnesia:create_schema([node()]),
+            mnesia:start(),
+            mnesia:create_table(
+              dns_queryA_response_TABLE,
+              [{attributes, record_info(fields,
+                                        dns_queryA_response_TABLE)}]),
+            mnesia:stop(),
+            {ok,"lock not created"};
+        true -> 
+            {ok,"lock created"}
+    end.
 
 dns_db_start() ->
     mnesia:start(),
-    mnesia:wait_for_tables([dns_queryA_response_TABLE], 20000).
+    mnesia:wait_for_tables([dns_queryA_response_TABLE], ?DNS_DB_TIMEOUT).
 
 dns_format_queryA_response_TABLE(Rows)->
     Fun = fun (Row) ->
-                  io:format("~-15s : ~-50s ~n~-15s : ~15p ~n~n",
+                  io:format("~-15s : ~-50s ~n~-15s : ~50p ~n~n",
                             ["HOSTNAME",
                              Row#dns_queryA_response_TABLE.hostname,
                              "RESPONSES",
@@ -100,9 +141,9 @@ dns_format_queryA_response_TABLE(Rows)->
           end,
     lists:map(Fun, Rows).
 
-dns_db_show_queryA_response(Format) ->
+show_stat_response() ->
     _Rows = do(qlc:q([X || X <- mnesia:table(dns_queryA_response_TABLE)])),
-    Format(_Rows).
+    dns_format_queryA_response_TABLE(_Rows).
 
 dns_db_add_queryA_response(Hostname) ->
     Transaction =
@@ -151,14 +192,14 @@ dns_convert_file_to_list(S) ->
     end.
 dns_parse_address(Ip) ->
     element(2,inet:parse_address(Ip)).
-
+    
 % TODO: TCO
-%
+%   
 dns_convert_list_to_map([]) ->
     #{};
 dns_convert_list_to_map([Host|Hosts]) ->
     [Name|Ips] = string:tokens(Host," "),
-
+    
     % Composes Ips in a binary (<<...>>) form.
     % Is there a shorter way rather than 3 funs?!
     Chain = [fun dns_parse_address/1,
@@ -167,24 +208,24 @@ dns_convert_list_to_map([Host|Hosts]) ->
     Fun = fun (X) -> 
                   chain_exec(Chain,X) 
           end,
-
+    
     Ips_to_binaries = lists:map(Fun,Ips),
     maps:put(Name,Ips_to_binaries,dns_convert_list_to_map(Hosts)).
-
+    
 dns_get_hosts_by_name(File) ->
     {ok, S} = file:open(File,read),
-
+    
     % Composes a map of Host -> IPs
     %
     Chain = [fun dns_convert_file_to_list/1,
              fun dns_convert_list_to_map/1],
     chain_exec(Chain,S).
-
+    
 dns_encode_queryA_header_and_question(Dns_id,
                                       Dns_num_answers,
                                       Dns_queryA,
                                       Dns_queryA_len) ->
-
+    
     <<Dns_id:?DNS_ID_LEN(),
       ?DNS_FLAGS:?DNS_FLAGS_LEN(),
       ?DNS_QUESTION_ONE:?DNS_NUM_QUESTIONS_LEN(),
@@ -192,9 +233,9 @@ dns_encode_queryA_header_and_question(Dns_id,
       ?DNS_NUM_AUTH:?DNS_NUM_AUTH_LEN(),
       ?DNS_NUM_ADD:?DNS_NUM_ADD_LEN(),
       Dns_queryA:Dns_queryA_len>>.
-
+    
 dns_encode_queryA_answers(Host_ips) ->
-
+    
     Dns_encode_one_queryA_answer = 
         fun (Host_ip) ->
                   % Pointer to the hostname (it  is 
@@ -212,31 +253,31 @@ dns_encode_queryA_answers(Host_ips) ->
                   ?DNS_ANSWER_DATA_LENGTH:?DNS_ANSWER_DATA_LENGTH_LEN(),
                   Host_ip/binary>> 
         end,
-
+    
     All_QueryA_answers =
         erlang:iolist_to_binary(lists:map(Dns_encode_one_queryA_answer,
                                           Host_ips)),
-
+    
     _All_QueryA_answers_plus_add = erlang:iolist_to_binary(
                                      [All_QueryA_answers,
                                       <<?DNS_NUM_ADD:?DNS_NUM_ADD_LEN()>>]).
 % Host found
-%
+%   
 dns_encode_queryA_response({ok,Host_ips},
                             Hostname,Dns_id,Dns_queryA,Dns_queryA_len) ->
-
+    
     io:format("**DNS** hostname:~p found!~n",[Hostname]),
-
+    
     dns_db_add_queryA_response(Hostname),
-
+    
     Num_answers = erlang:length(Host_ips),
-
+    
     QueryA_header_and_question =
         dns_encode_queryA_header_and_question(Dns_id,
                                               Num_answers,
                                               Dns_queryA,
                                               Dns_queryA_len),
-
+    
     QueryA_anwers = dns_encode_queryA_answers(Host_ips),
     _QueryA_response =
         erlang:iolist_to_binary([QueryA_header_and_question,QueryA_anwers]);
@@ -314,7 +355,10 @@ dns_receive(Socket,Hosts_by_name) ->
                                                     Src_packet) 
                   end,
 
-            _Pid = spawn(Fun), % Spawns one process per query
+            % A process (acceptor) will be dinamically spawned per query to 
+            % attend it.
+            %
+            spawn(Fun), 
             dns_receive(Socket,Hosts_by_name)
     end.
 
@@ -323,20 +367,47 @@ dns_server(Port,Hosts_by_name) ->
     io:format("**DNS** server opened socket:~p~n",[Socket]),
     dns_receive(Socket,Hosts_by_name).
 
-run(Port) ->
 
-    % Code and configuration file in the same dir (MODULE trick)
-    File = filename:join(filename:dirname(code:which(?MODULE)),"dns.hosts.txt"),
+% To be started standalone
+%
+% $ erl [-noshell] -pa PATH-TO-BEAM -run dns_server start FILE PORT
+% 
+% Ie: 
+% 
+% $ erl [-noshell] -pa _build/default/lib/dns_server/ebin/ -run dns_server start "./src/dns.hosts.txt" 3535
+%                           
+start([File|[PortAsString]]) ->
+    {Port,_} = string:to_integer(PortAsString),
+    start(File,Port).   
 
-    io:format("**DNS** server port:~p file:~p~n",[Port,File]),
+% To be started embbeded in a shell
+%
+% $ erl 
+% 1> c(dns_server).
+% 2> dns_server:start(FILE,PORT).
+%
+% Ie:
+%
+% $ erl 
+% 1> c(dns_server).
+% 2> dns_server:start("/home/raul/my-repos/dns_server/src/dns.hosts.txt",3535).
+%
+start(File,Port) ->
 
     Hosts_by_name = dns_get_hosts_by_name(File),
 
-    % Start listening requests...
-    io:format("**DNS** server configured with:~p~n",[Hosts_by_name]),
+    io:format("**DNS** server file::~p:: port::~p::~n" ,[File,Port]),
+    io:format("**DNS** server configured with ::~p::~n",[Hosts_by_name]),
 
     dns_db_init(),
     dns_db_start(),
     dns_db_provision(Hosts_by_name),
 
-    dns_server(Port,Hosts_by_name).
+    % A process is statically spawned to listen for incoming queries
+    % 
+    Name = ?DNS_SERVER_NAME,
+    Fun = fun() ->
+                  dns_server(Port,Hosts_by_name)
+          end,
+    register(Name, Pid=spawn(Fun)),
+    io:format("**DNS** server resistered with name::~p:: pid::~p:: ~n",[Name,Pid]).
