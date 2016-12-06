@@ -1,8 +1,8 @@
-%-*-Mode:erlang;coding:utf-8-*-xx
+%-*-Mode:erlang;coding:utf-8-*-
 
 -module(dns_server).
--export([start/2,
-         start/1]).
+-export([start/1,
+         start/2]).
 
 -define(BYTE,
         8).
@@ -40,6 +40,7 @@
          ?DNS_NUM_ANSWERS_LEN()+
          ?DNS_NUM_AUTH_LEN()+
          ?DNS_NUM_ADD_LEN())).
+
 -define(DNS_QUESTION_ONE, %  only one question is allowed
         1).
 
@@ -79,13 +80,12 @@
 -define(DNS_ANSWER_DATA_LENGTH,     % 4 bytes (IPv4 address)
         16#0004).
 
-
 % Executes a composition of functions
 %
-chain_exec([], Arg) ->
+compose_exec([], Arg) ->
     Arg;
-chain_exec([Fun | Funs], Arg) ->
-    chain_exec(Funs, Fun(Arg)).
+compose_exec([Fun | Funs], Arg) ->
+    compose_exec(Funs, Fun(Arg)).
 
 dns_filter_cr_lf(Data) ->
     re:replace(Data, "[\\r\\n]", "", [{return,list}]).
@@ -109,11 +109,11 @@ dns_convert_list_to_map([Host|Hosts]) ->
     
     % Composes Ips in a binary (<<...>>) form.
     % Is there a shorter way rather than 3 funs?!
-    Chain = [fun dns_parse_address/1,
-             fun tuple_to_list/1,
-             fun list_to_binary/1],
+    Composition = [fun dns_parse_address/1,
+                   fun tuple_to_list/1,
+                   fun list_to_binary/1],
     Fun = fun (X) -> 
-                  chain_exec(Chain,X) 
+                  compose_exec(Composition,X) 
           end,
     
     Ips_to_binaries = lists:map(Fun,Ips),
@@ -124,9 +124,9 @@ dns_get_hosts_by_name(File) ->
     
     % Composes a map of Host -> IPs
     %
-    Chain = [fun dns_convert_file_to_list/1,
-             fun dns_convert_list_to_map/1],
-    chain_exec(Chain,S).
+    Composition = [fun dns_convert_file_to_list/1,
+                   fun dns_convert_list_to_map/1],
+    compose_exec(Composition,S).
     
 dns_encode_queryA_header_and_question(Dns_id,
                                       Dns_num_answers,
@@ -142,18 +142,17 @@ dns_encode_queryA_header_and_question(Dns_id,
       Dns_queryA:Dns_queryA_len>>.
     
 dns_encode_queryA_answers(Host_ips) ->
-    
+
     Dns_encode_one_queryA_answer = 
         fun (Host_ip) ->
-                  % Pointer to the hostname (it  is 
-                  % already present  in the  queryA 
-                  % segment).
-                  % See 4.1.4 "Message compression"
-                  % on RFC1035
-                <<?DNS_ANSWER_POINTER:?BYTE,
-                  % Offset for that pointer: 
-                  % hostname = message start + offset
-                  ?DNS_ANSWER_OFFSET():?BYTE,
+                <<?DNS_ANSWER_POINTER:?BYTE,  % Pointer to the hostname:
+                                              % it is already present in the 
+                                              % queryA segment).See 4.1.4 
+                                              % "Message compression"on RFC1035.
+
+                  ?DNS_ANSWER_OFFSET():?BYTE, % Offset for that pointer: 
+                                              % hostname = message start + offset
+
                   ?DNS_ANSWER_TYPE:?DNS_ANSWER_TYPE_LEN(),
                   ?DNS_ANSWER_CLASS:?DNS_ANSWER_CLASS_LEN(),
                   ?DNS_ANSWER_TTL:?DNS_ANSWER_TTL_LEN(),
@@ -175,7 +174,7 @@ dns_encode_queryA_response({ok,Host_ips},
     
     io:format("**DNS** hostname:~p found!~n",[Hostname]),
     
-    dns_db_server:dns_db_add_queryA_response(Hostname),
+    dns_db_server:insert_queryA_response(Hostname),
     
     Num_answers = erlang:length(Host_ips),
     
@@ -296,8 +295,14 @@ start([File|[PortAsString]]) ->
 % Ie:
 %
 % $ r3 compile
+% $ erl
 % 1> code:add_path("./_build/default/lib/dns_server/ebin").
-% 2> dns_server:start("/home/raul/my-repos/dns_server/src/dns.hosts.txt",3535).
+%
+% Only first time:
+% 2> dns_db_server:init(). 
+%
+% 3> dns_db_server:start().
+% 3> dns_server:start("/home/raul/my-repos/dns_server/src/dns.hosts.txt",3535).
 %
 start(File,Port) ->
 
@@ -306,9 +311,7 @@ start(File,Port) ->
     io:format("**DNS** server file::~p:: port::~p::~n" ,[File,Port]),
     io:format("**DNS** server configured with ::~p::~n",[Hosts_by_name]),
 
-    dns_db_server:dns_db_init(),
-    dns_db_server:dns_db_start(),
-    dns_db_server:dns_db_provision(Hosts_by_name),
+    dns_db_server:provision(Hosts_by_name),
 
     % A process is statically spawned to listen for incoming queries
     % 
