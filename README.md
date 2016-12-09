@@ -1,5 +1,5 @@
 dns_server
-=====
+==========
 
 An DNS server deployed as an OTP application, just for fun with Erlang :).
 
@@ -13,29 +13,26 @@ Build
 Start
 -----
 
-    $ erl
-
-    1> code:add_path("./_build/default/lib/dns_server/ebin").
-    true
+    $ rebar3 shell
 
     Start Mnesia:
 
-    2> dns_db_server:init().
+    1> dns_db_server:init().
     stopped
 
     =INFO REPORT==== 9-Dec-2016::21:14:04 ===
         application: mnesia
         exited: stopped
         type: temporary
-    3> dns_db_server:start().
+    2> dns_db_server:start().
     ok
-    4> application:load(dns_server).
+    3> application:load(dns_server).
     ok
 
     Start the server:
 
-    5> application:loaded_applications().
-    [{dns_server,"A DNS server","0.0.0+build.11.ref1e538cc"},
-    {kernel,"ERTS  CXC 138 10","5.1"},
-    {stdlib,"ERTS  CXC 138 10","3.1"}]
-    6> application:start(dns_server).
+    4> application:loaded_applications().
+    ...
+    [{dns_server,"A DNS server","..."},
+    ...
+    5> application:start(dns_server).

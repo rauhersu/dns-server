@@ -6,14 +6,14 @@
   {env,[{dns_application, "dns_server"},  % Must match the application name
         {dns_filename, "dns.hosts.txt"},  % Must be present in 'priv' dir
         {dns_port, 3535}]},
-   {modules, [dns_server, dns_db_server, dns_server_sup, dns_server_app]},
-   {registered, []},
-   {mod, { dns_server_app,[]}},
-   {applications,
-    [kernel,
-     stdlib
-    ]},
-   {maintainers, []},
-   {licenses, []},
-   {links, []}
+  {modules, [dns_server, dns_db_server, dns_server_sup, dns_server_app]},
+  {registered, []},
+  {mod, { dns_server_app,[]}},
+  {applications,
+   [kernel,
+    stdlib
+   ]},
+  {maintainers, []},
+  {licenses, []},
+  {links, []}
 ]}.
