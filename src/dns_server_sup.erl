@@ -26,9 +26,37 @@ start_link() ->
 %% Supervisor callbacks
 %%====================================================================
 
-%% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
 init([]) ->
-    {ok, { {one_for_all, 0, 1}, []} }.
+
+    % Supervisor specification 
+    %
+    Restart_strategy = one_for_one,
+    Max_restarts = 1,                  % one restart every
+    Max_seconds_between_restarts = 5,  % five seconds
+    Supervisor_spec = {Restart_strategy, 
+                       Max_restarts, 
+                       Max_seconds_between_restarts},
+
+    Restart = permanent, % permanent or temporary or transient
+    Shutdown = 2000,     % milliseconds
+    Type = worker, 
+
+    % Configuration
+    %
+    {ok,Application} = application:get_env(dns_application),
+    {ok,FileName} = application:get_env(dns_filename),
+    {ok,Port} = application:get_env(dns_port),
+    File = filename:join(code:priv_dir(Application)++"/",FileName),
+
+    % Child specification
+    %
+    Child_spec = {dns_server, % id           
+                  {dns_server,dns_start, [File,Port]}, % module,start func,args
+                  Restart, 
+                  Shutdown, 
+                  Type, 
+                  [dns_server,dns_db_server]}, % module list
+    {ok, {Supervisor_spec, [Child_spec]}}.
 
 %%====================================================================
 %% Internal functions

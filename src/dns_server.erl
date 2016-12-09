@@ -1,8 +1,8 @@
 %-*-Mode:erlang;coding:utf-8-*-
 
 -module(dns_server).
--export([start/1,
-         start/2]).
+-export([dns_start/1,
+         dns_start/2]).
 
 -define(BYTE,
         8).
@@ -171,7 +171,7 @@ dns_encode_queryA_answers(Host_ips) ->
 %   
 dns_encode_queryA_response({ok,Host_ips},
                             Hostname,Dns_id,Dns_queryA,Dns_queryA_len) ->
-    
+
     io:format("**DNS** hostname:~p found!~n",[Hostname]),
     
     dns_db_server:insert_queryA_response(Hostname),
@@ -235,7 +235,6 @@ dns_decode_queryA_request(Socket,Hosts_by_name,Host,Port,Src_packet) ->
     <<Dns_queryA:Dns_queryA_len,
       _/binary>> = Dns_rest_of_msg,
 
-
     % The response
     %
     Dst_packet = dns_encode_queryA_response(Host_ips,
@@ -252,7 +251,6 @@ dns_receive(Socket,Hosts_by_name) ->
     receive
         {udp, Socket, Host, Port, Src_packet} = Src_Data ->
             io:format("**DNS** server received:~p~n",[Src_Data]),
-
             Fun = fun() -> 
                           dns_decode_queryA_request(Socket,
                                                     Hosts_by_name,
@@ -260,7 +258,6 @@ dns_receive(Socket,Hosts_by_name) ->
                                                     Port,
                                                     Src_packet) 
                   end,
-
             % A process (acceptor) will be dinamically spawned per query to 
             % attend it.
             %
@@ -276,21 +273,21 @@ dns_server(Port,Hosts_by_name) ->
 
 % To be started standalone
 %
-% $ erl [-noshell] -pa PATH-TO-BEAM -run dns_server start FILE PORT
+% $ erl [-noshell] -pa PATH-TO-BEAM -run dns_server dns_start FILE PORT
 % 
 % Ie: 
 % 
-% $ erl [-noshell] -pa _build/default/lib/dns_server/ebin/ -run dns_server start "./src/dns.hosts.txt" 3535
+% $ erl [-noshell] -pa _build/default/lib/dns_server/ebin/ -run dns_server dns_start "./src/dns.hosts.txt" 3535
 %                           
-start([File|[PortAsString]]) ->
+dns_start([File|[PortAsString]]) ->
     {Port,_} = string:to_integer(PortAsString),
-    start(File,Port).   
+    dns_start(File,Port).   
 
-% To be started embbeded in a shell
+% To be dns_started embbeded in a shell
 %
 % $ erl 
 % 1> c(dns_server).
-% 2> dns_server:start(FILE,PORT).
+% 2> dns_server:dns_start(FILE,PORT).
 %
 % Ie:
 %
@@ -301,23 +298,26 @@ start([File|[PortAsString]]) ->
 % Only first time:
 % 2> dns_db_server:init(). 
 %
-% 3> dns_db_server:start().
-% 3> dns_server:start("/home/raul/my-repos/dns_server/src/dns.hosts.txt",3535).
+% 3> dns_db_server:dns_start().
+% 3> dns_server:dns_start("/home/raul/my-repos/dns_server/src/dns.hosts.txt",3535).
 %
-start(File,Port) ->
+dns_start(File,Port) ->
+
+    io:format("**DNS** server file::~p:: port::~p::~n",[File,Port]),
 
     Hosts_by_name = dns_get_hosts_by_name(File),
 
-    io:format("**DNS** server file::~p:: port::~p::~n" ,[File,Port]),
     io:format("**DNS** server configured with ::~p::~n",[Hosts_by_name]),
 
     dns_db_server:provision(Hosts_by_name),
 
     % A process is statically spawned to listen for incoming queries
     % 
-    Name = ?DNS_SERVER_NAME,
-    Fun = fun() ->
-                  dns_server(Port,Hosts_by_name)
-          end,
-    register(Name, Pid=spawn(Fun)),
-    io:format("**DNS** server resistered with name::~p:: pid::~p:: ~n",[Name,Pid]).
+    %% Name = ?DNS_SERVER_NAME,
+    %% Fun = fun() ->
+    %%               dns_server(Port,Hosts_by_name)
+    %%       end,
+    %% Pid = spawn(Fun),
+    %% io:format("**DNS** server started with name::~p:: pid::~p:: ~n",[Name,Pid]),
+
+    dns_server(Port,Hosts_by_name).

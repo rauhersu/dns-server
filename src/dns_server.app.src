@@ -3,15 +3,17 @@
 {application, dns_server,
  [{description, "A DNS server"},
   {vsn, "git"},
-  {registered, []},
-  {mod, { dns_server_app, dns_db_server,[]}},
-  {applications,
-   [kernel,
-    stdlib
-   ]},
-  {env,[]},
-  {modules, []},
-  {maintainers, []},
-  {licenses, []},
-  {links, []}
+  {env,[{dns_application, "dns_server"},  % Must match the application name
+        {dns_filename, "dns.hosts.txt"},  % Must be present in 'priv' dir
+        {dns_port, 3535}]},
+   {modules, [dns_server, dns_db_server, dns_server_sup, dns_server_app]},
+   {registered, []},
+   {mod, { dns_server_app,[]}},
+   {applications,
+    [kernel,
+     stdlib
+    ]},
+   {maintainers, []},
+   {licenses, []},
+   {links, []}
 ]}.
