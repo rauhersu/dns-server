@@ -1,4 +1,4 @@
-dns_server
+dns-server
 ==========
 
 An DNS server deployed as an OTP application, just for fun with Erlang :).
